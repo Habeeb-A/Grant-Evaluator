@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EA Grant Auditor | AI-Powered Evaluation</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        ea: {
+                            blue: '#0C8CE9',
+                            dark: '#0A1929',
+                            light: '#F0F4F8',
+                            accent: '#00C7B1',
+                            danger: '#EF4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Robust Scrollbar Styling */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin-bottom: 0.5em; color: #1e293b; }
+        .markdown-body h2 { font-size: 1.25em; font-weight: 600; margin-top: 1em; margin-bottom: 0.5em; color: #334155; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+        .markdown-body h3 { font-size: 1.1em; font-weight: 600; margin-top: 1em; margin-bottom: 0.25em; color: #475569; }
+        .markdown-body p { margin-bottom: 1em; line-height: 1.6; color: #334155; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
+        .markdown-body ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
+        .markdown-body li { margin-bottom: 0.25em; }
+        .markdown-body strong { font-weight: 700; color: #0f172a; }
+        .markdown-body code { background-color: #f1f5f9; padding: 0.2em 0.4em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; color: #ef4444; }
+        .markdown-body blockquote { border-left: 4px solid #0C8CE9; padding-left: 1em; margin: 1em 0; color: #64748b; font-style: italic; background: #f8fafc; padding: 1rem; }
+        .markdown-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+        .markdown-body th { background: #f8fafc; font-weight: 600; }
+        
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffffff;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .upload-zone.dragover {
+            background-color: #eff6ff;
+            border-color: #0C8CE9;
+            transform: scale(1.01);
+        }
+
+        .tool-btn {
+            transition: all 0.2s;
+        }
+        .tool-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<!-- Changed to h-screen but with md:overflow-hidden to allow mobile scrolling -->
+<body class="bg-gray-50 text-slate-800 h-screen flex flex-col md:overflow-hidden">
+
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-ea-blue text-white p-1.5 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900 hidden sm:block">EA Grant Auditor</h1>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900 sm:hidden">EA Auditor</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-xs font-medium text-ea-blue px-2 py-0.5 bg-blue-50 rounded-full hidden sm:inline-block">Powered by Gemini 2.0 Flash</span>
+            <button id="resetBtn" class="text-sm text-gray-500 hover:text-ea-blue transition">New</button>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 mb-10">
+        
+        <!-- Left Panel: Input & Controls -->
+        <div class="w-full md:w-1/3 min-w-0 md:min-w-[350px] bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col p-6 z-0 shadow-sm overflow-y-auto">
+            
+            <!-- Intro -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Evaluation Framework</h3>
+                <p class="text-sm text-gray-500 mb-2">
+                    Grounded in real EA evaluation frameworks.
+                </p>
+                <div class="text-xs text-gray-500 space-y-1">
+                    <p class="font-semibold text-gray-700 mb-1">Core Dimensions (INT Framework):</p>
+                    <ul class="list-disc pl-4 space-y-0.5">
+                        <li><strong>Importance</strong>: Scale and significance of the problem</li>
+                        <li><strong>Neglectedness</strong>: How underfunded/under-researched</li>
+                        <li><strong>Tractability</strong>: How solvable the problem is</li>
+                    </ul>
+                    <p class="font-semibold text-gray-700 mt-2 mb-1">Additional Criteria:</p>
+                    <ul class="list-disc pl-4 space-y-0.5">
+                        <li>Cost-Effectiveness (BOTECs vs. GiveWell benchmarks)</li>
+                        <li>Theory of Change & Evidence Base</li>
+                        <li>Organizational Capacity & Track Record</li>
+                        <li>Risk Assessment & Downside Scenarios</li>
+                </ul>
+                </div>
+            </div>
+
+            <!-- Upload Zone -->
+            <div id="uploadZone" class="upload-zone border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition hover:bg-gray-50 hover:border-ea-blue flex flex-col items-center justify-center group relative h-48 shrink-0">
+                <input type="file" id="fileInput" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.docx,.txt">
+                <div class="bg-blue-50 text-ea-blue p-3 rounded-full mb-3 group-hover:scale-110 transition duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                </div>
+                <p class="text-sm font-medium text-gray-700">Click to upload or drag & drop</p>
+                <p class="text-xs text-gray-400 mt-1">PDF, Word, or Text files</p>
+            </div>
+
+            <!-- File Info -->
+            <div id="fileInfo" class="hidden mt-4 bg-blue-50 border border-blue-100 rounded-lg p-3 shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-ea-blue shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span id="fileName" class="text-sm text-gray-700 font-medium truncate">proposal.pdf</span>
+                </div>
+                <button id="removeFileBtn" class="text-gray-400 hover:text-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                </div>
+                <div id="fileSizeInfo" class="text-xs text-gray-600">
+                    <span id="charCount">0</span> characters
+                    <span id="sizeWarning" class="hidden text-orange-600 ml-2">⚠️ Large file - may hit rate limits</span>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button id="analyzeBtn" disabled class="mt-4 w-full bg-gray-300 text-gray-500 font-bold py-3 rounded-lg transition cursor-not-allowed flex items-center justify-center gap-2 shrink-0">
+                Evaluate Proposal
+            </button>
+
+            <!-- Console Log (Collapsible) -->
+            <div class="mt-6 md:mt-auto pt-6 border-t border-gray-100">
+                <button id="toggleLogBtn" class="w-full flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition group py-1 px-1 rounded hover:bg-gray-50">
+                    <span class="flex items-center gap-2">
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Auditor Logs
+                    </span>
+                    <svg id="logToggleIcon" class="h-4 w-4 transform transition-transform duration-200 text-gray-400 group-hover:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div id="statusLogContainer" class="hidden overflow-hidden transition-all duration-300">
+                <div id="statusLog" class="h-32 overflow-y-auto font-mono text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
+                    <p class="text-gray-400 italic">Waiting for document...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Results -->
+        <div class="flex-1 bg-gray-50 flex flex-col overflow-hidden relative min-h-0">
+            
+            <!-- Placeholder State -->
+            <div id="resultsPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-center p-12 z-0 overflow-y-auto">
+                <div class="bg-white p-6 rounded-full shadow-sm mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-400 mb-2">No Evaluation Yet</h2>
+                <p class="text-gray-400 max-w-md">Upload a grant proposal to receive a comprehensive EA-aligned analysis, scoring, and improvement plan.</p>
+            </div>
+
+            <!-- Results Container -->
+            <div id="resultsContainer" class="hidden flex-col h-full w-full z-10 min-h-0">
+                
+                <!-- Scorecard Ribbon -->
+                <div class="bg-white border-b border-gray-200 p-6 shadow-sm shrink-0">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-4">
+                    <div class="col-span-1 border-b md:border-b-0 md:border-r border-gray-100 pb-4 md:pb-0 md:pr-4">
+                        <p class="text-xs font-bold text-gray-500 uppercase">Evaluator Verdict</p>
+                        <h2 id="verdictText" class="text-xl md:text-2xl font-bold text-gray-900 mt-1">--</h2>
+                            <p id="overallScore" class="text-xs text-gray-500 mt-1">Overall: --/10</p>
+                    </div>
+                        <div class="col-span-1 md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="flex-1">
+                            <div class="flex justify-between mb-1">
+                                    <span class="text-xs font-medium text-gray-600">Importance</span>
+                                <span id="scoreImp" class="text-xs font-bold text-gray-900">0/10</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="barImp" class="bg-ea-blue h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between mb-1">
+                                <span class="text-xs font-medium text-gray-600">Neglectedness</span>
+                                <span id="scoreNeg" class="text-xs font-bold text-gray-900">0/10</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="barNeg" class="bg-ea-accent h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between mb-1">
+                                <span class="text-xs font-medium text-gray-600">Tractability</span>
+                                <span id="scoreTra" class="text-xs font-bold text-gray-900">0/10</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div id="barTra" class="bg-indigo-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+                            <div class="flex-1">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-xs font-medium text-gray-600">Cost-Effectiveness</span>
+                                    <span id="scoreCE" class="text-xs font-bold text-gray-900">0/10</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div id="barCE" class="bg-green-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                        <div class="flex items-center gap-4 text-xs">
+                            <div>
+                                <span class="text-gray-500">Risk Score:</span>
+                                <span id="riskScoreDisplay" class="font-bold text-gray-900 ml-1">--/100</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">BOTEC:</span>
+                                <span id="botecDisplay" class="font-mono text-gray-900 ml-1">--</span>
+                            </div>
+                        </div>
+                        <button id="exportBtn" class="hidden text-xs bg-ea-blue hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition">
+                            📥 Export Report
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth min-h-0">
+                    <div class="max-w-4xl mx-auto">
+                        <!-- Charts Row -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                <h4 class="text-xs font-bold text-gray-500 uppercase mb-3">Cost-Effectiveness Check</h4>
+                                <div class="relative h-48">
+                                    <canvas id="chartCost"></canvas>
+                                </div>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                                <h4 class="text-xs font-bold text-gray-500 uppercase mb-3">Risk Profile</h4>
+                                <div class="relative h-48">
+                                    <canvas id="chartRisk"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deep Dive Tools -->
+                        <div class="mb-8">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Deep Dive Tools</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <button data-action="redteam" class="tool-btn ai-tool-btn bg-white border border-red-100 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-red-200 text-left flex flex-row md:flex-col gap-4 md:gap-2 group items-center md:items-start">
+                                    <span class="text-2xl bg-red-50 w-12 h-12 md:w-10 md:h-10 flex items-center justify-center rounded-lg group-hover:scale-110 transition shrink-0">🔥</span>
+                                    <div>
+                                        <span class="font-bold text-gray-800 block">Red Team Attack</span>
+                                        <span class="text-xs text-gray-500">Run a harsh "Premortem" analysis on failure modes.</span>
+                                    </div>
+                                </button>
+                                <button data-action="budget" class="tool-btn ai-tool-btn bg-white border border-green-100 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-green-200 text-left flex flex-row md:flex-col gap-4 md:gap-2 group items-center md:items-start">
+                                    <span class="text-2xl bg-green-50 w-12 h-12 md:w-10 md:h-10 flex items-center justify-center rounded-lg group-hover:scale-110 transition shrink-0">✨</span>
+                                    <div>
+                                        <span class="font-bold text-gray-800 block">Budget Reality Check</span>
+                                        <span class="text-xs text-gray-500">Scan for inflated costs & suggest market rates.</span>
+                                    </div>
+                                </button>
+                                <button data-action="logic" class="tool-btn ai-tool-btn bg-white border border-blue-100 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-blue-200 text-left flex flex-row md:flex-col gap-4 md:gap-2 group items-center md:items-start">
+                                    <span class="text-2xl bg-blue-50 w-12 h-12 md:w-10 md:h-10 flex items-center justify-center rounded-lg group-hover:scale-110 transition shrink-0">🧠</span>
+                                    <div>
+                                        <span class="font-bold text-gray-800 block">Logic Model Builder</span>
+                                        <span class="text-xs text-gray-500">Generate a formal Inputs → Outcomes pathway.</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- AI Text Content -->
+                        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-12">
+                            <div class="bg-gray-50 px-6 py-3 border-b border-gray-200 flex gap-4 text-sm font-medium text-gray-600">
+                                <button class="text-ea-blue border-b-2 border-ea-blue pb-3 -mb-3.5">Full Evaluation</button>
+                            </div>
+                            <div id="markdownOutput" class="markdown-body p-6 md:p-8">
+                                <!-- AI Content Goes Here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Floating Feedback Button -->
+    <button id="feedbackBtn" class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 bg-ea-blue hover:bg-blue-600 text-white rounded-full px-4 py-3 md:p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 flex items-center justify-center group" aria-label="Provide Feedback">
+        <svg class="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+        </svg>
+        <span class="ml-2 font-semibold hidden sm:inline text-sm md:text-base">Feedback</span>
+    </button>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
+                <h2 class="text-xl font-bold text-gray-900">Share Your Feedback</h2>
+                <button id="closeFeedbackModal" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <form id="feedbackForm" class="p-6 space-y-4">
+                <!-- What did you like? -->
+                <div>
+                    <label for="feedbackLiked" class="block text-sm font-medium text-gray-700 mb-2">
+                        What did you like? <span class="text-gray-400">(optional)</span>
+                    </label>
+                    <textarea 
+                        id="feedbackLiked" 
+                        name="liked" 
+                        rows="3" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ea-blue focus:border-transparent resize-none"
+                        placeholder="Tell us what worked well..."
+                    ></textarea>
+                </div>
+
+                <!-- What can be improved? -->
+                <div>
+                    <label for="feedbackImproved" class="block text-sm font-medium text-gray-700 mb-2">
+                        What can be improved? <span class="text-gray-400">(optional)</span>
+                    </label>
+                    <textarea 
+                        id="feedbackImproved" 
+                        name="improved" 
+                        rows="3" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ea-blue focus:border-transparent resize-none"
+                        placeholder="Share your suggestions for improvement..."
+                    ></textarea>
+                </div>
+
+                <!-- Additional comments -->
+                <div>
+                    <label for="feedbackComments" class="block text-sm font-medium text-gray-700 mb-2">
+                        Additional comments <span class="text-gray-400">(optional)</span>
+                    </label>
+                    <textarea 
+                        id="feedbackComments" 
+                        name="comments" 
+                        rows="3" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ea-blue focus:border-transparent resize-none"
+                        placeholder="Any other thoughts or feedback..."
+                    ></textarea>
+                </div>
+
+                <!-- Optional email -->
+                <div>
+                    <label for="feedbackEmail" class="block text-sm font-medium text-gray-700 mb-2">
+                        Your email <span class="text-gray-400">(optional)</span>
+                    </label>
+                    <input 
+                        type="email" 
+                        id="feedbackEmail" 
+                        name="email" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ea-blue focus:border-transparent"
+                        placeholder="your.email@example.com"
+                    />
+                </div>
+
+                <!-- Error Message -->
+                <div id="feedbackError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                    <p id="feedbackErrorText"></p>
+                </div>
+
+                <!-- Success Message -->
+                <div id="feedbackSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
+                    <p>Thank you! Your feedback has been sent.</p>
+                </div>
+
+                <!-- Fallback Email Option -->
+                <div id="feedbackFallback" class="hidden bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
+                    <p class="font-semibold mb-2">Email service unavailable. Alternative options:</p>
+                    <div class="space-y-2">
+                        <button type="button" id="copyFeedbackBtn" class="text-xs bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded transition">
+                            📋 Copy Feedback to Clipboard
+                        </button>
+                        <a id="mailtoLink" href="#" target="_blank" class="block text-xs text-blue-600 hover:underline">
+                            ✉️ Open Email Client
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex gap-3 pt-2">
+                    <button 
+                        type="submit" 
+                        id="feedbackSubmitBtn"
+                        class="flex-1 bg-ea-blue hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <span id="submitBtnText">Submit Feedback</span>
+                        <span id="submitBtnSpinner" class="hidden">
+                            <div class="spinner inline-block"></div> Sending...
+                        </span>
+                    </button>
+                    <button 
+                        type="button" 
+                        id="feedbackCancelBtn"
+                        class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer Disclaimer (Fixed at Bottom) -->
+    <footer class="fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 py-2.5 px-4 z-40 m-0">
+        <div class="max-w-7xl mx-auto">
+            <p class="text-[10px] md:text-xs text-gray-500 leading-relaxed">
+                <strong class="text-gray-600 font-semibold">Disclaimer:</strong> This tool provides automated suggestions based on publicly available grant-evaluation frameworks within the Effective Altruism ecosystem. It is not a final verdict on any proposal. All outputs should be treated as advisory guidance intended to help applicants strengthen their ideas, clarify their reasoning, and improve the clarity of their submissions. No decisions about funding, approval, or eligibility should be based solely on this tool. Always consult human reviewers, grantmakers, or relevant experts before making any final judgment.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // --- Global Variables ---
+        // Backend API endpoint - update this to match your deployment
+        const API_BASE_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : window.location.origin; // Use same origin for production
+        
+        let extractedText = '';
+        let isProcessing = false;
+        let costChart = null;
+        let riskChart = null;
+        
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // --- Utils ---
+        const log = (msg, type = 'info') => {
+            const el = document.getElementById('statusLog');
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second:'2-digit' });
+            const color = type === 'error' ? 'text-red-500' : (type === 'success' ? 'text-green-600' : 'text-gray-600');
+            el.innerHTML += `<div class="mb-1 ${color}"><span class="opacity-50 mr-1">[${time}]</span> ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        };
+
+        // --- Helper to clean JSON ---
+        function cleanAndParseJSON(text) {
+            try {
+                // 1. Remove Markdown wrapping
+                let cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                // 2. Remove any leading/trailing whitespace and control characters
+                cleaned = cleaned.replace(/^[\s\u0000-\u001F]+|[\s\u0000-\u001F]+$/g, '');
+
+                // 3. Attempt direct parse first
+                try {
+                    return JSON.parse(cleaned);
+                } catch (e1) {
+                    // 4. Extract JSON object boundaries
+                    const firstBrace = cleaned.indexOf('{');
+                    const lastBrace = cleaned.lastIndexOf('}');
+                    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+                        throw new Error("No valid JSON object found");
+                    }
+                    
+                    let jsonStr = cleaned.substring(firstBrace, lastBrace + 1);
+                    
+                    // 5. Fix common JSON issues
+                    // Fix trailing commas
+                    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+                    
+                    // Fix unquoted keys
+                    jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+                    
+                    // Fix invalid escape sequences
+                    jsonStr = jsonStr.replace(/\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g, "\\\\");
+                    
+                    // 6. Try to fix unescaped quotes in string values (especially in markdown_report)
+                    // This is a more sophisticated approach: find string values and fix them
+                    try {
+                        return JSON.parse(jsonStr);
+                    } catch (e2) {
+                        // 7. Advanced fix: handle unescaped quotes in markdown_report field
+                        // Find the markdown_report field and properly escape its content
+                        const markdownReportMatch = jsonStr.match(/"markdown_report"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/);
+                        if (!markdownReportMatch) {
+                            // Try to find it with a different pattern (might have unescaped quotes)
+                            const markdownStart = jsonStr.indexOf('"markdown_report"');
+                            if (markdownStart !== -1) {
+                                const colonPos = jsonStr.indexOf(':', markdownStart);
+                                const quoteStart = jsonStr.indexOf('"', colonPos);
+                                if (quoteStart !== -1) {
+                                    // Find where the markdown_report value should end
+                                    // Look for the next " that's followed by } or ,
+                                    let quoteEnd = quoteStart + 1;
+                                    let inEscape = false;
+                                    let depth = 0;
+                                    
+                                    // Try a different approach: reconstruct the JSON
+                                    // Extract all fields before markdown_report
+                                    const beforeMarkdown = jsonStr.substring(0, markdownStart);
+                                    const afterMarkdown = jsonStr.substring(colonPos);
+                                    
+                                    // Find the end of markdown_report by looking for the closing brace
+                                    // that matches the structure
+                                    let endPos = lastBrace;
+                                    // Count braces to find where markdown_report ends
+                                    let braceCount = 0;
+                                    let foundStart = false;
+                                    for (let i = colonPos; i < jsonStr.length; i++) {
+                                        if (jsonStr[i] === '{') braceCount++;
+                                        if (jsonStr[i] === '}') {
+                                            braceCount--;
+                                            if (braceCount === 0 && foundStart) {
+                                                endPos = i;
+                                                break;
+                                            }
+                                        }
+                                        if (jsonStr[i] === '"' && !foundStart) {
+                                            foundStart = true;
+                                        }
+                                    }
+                                    
+                                    // Try to extract and fix the markdown_report value
+                                    const markdownValueStart = jsonStr.indexOf('"', colonPos) + 1;
+                                    // Find the actual end - look for " followed by } or ,
+                                    let markdownValueEnd = markdownValueStart;
+                                    let quoteCount = 0;
+                                    for (let i = markdownValueStart; i < jsonStr.length; i++) {
+                                        if (jsonStr[i] === '\\' && i + 1 < jsonStr.length) {
+                                            i++; // Skip escaped character
+                                            continue;
+                                        }
+                                        if (jsonStr[i] === '"') {
+                                            // Check if this quote is followed by } or ,
+                                            let j = i + 1;
+                                            while (j < jsonStr.length && /\s/.test(jsonStr[j])) j++;
+                                            if (jsonStr[j] === '}' || jsonStr[j] === ',') {
+                                                markdownValueEnd = i;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (markdownValueEnd > markdownValueStart) {
+                                        const markdownValue = jsonStr.substring(markdownValueStart, markdownValueEnd);
+                                        // Escape the markdown value properly
+                                        const escapedValue = markdownValue
+                                            .replace(/\\/g, '\\\\')  // Escape backslashes first
+                                            .replace(/"/g, '\\"')     // Escape quotes
+                                            .replace(/\n/g, '\\n')    // Escape newlines
+                                            .replace(/\r/g, '\\r')    // Escape carriage returns
+                                            .replace(/\t/g, '\\t');   // Escape tabs
+                                        
+                                        // Reconstruct JSON
+                                        jsonStr = jsonStr.substring(0, markdownValueStart) + 
+                                                 escapedValue + 
+                                                 jsonStr.substring(markdownValueEnd);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        try {
+                            return JSON.parse(jsonStr);
+                        } catch (e3) {
+                            // 8. Last resort: try to manually extract fields using regex
+                            try {
+                                const result = {};
+                                
+                                // Extract verdict
+                                const verdictMatch = jsonStr.match(/"verdict"\s*:\s*"([^"]+)"/);
+                                if (verdictMatch) result.verdict = verdictMatch[1];
+                                
+                                // Extract scores
+                                const scoresMatch = jsonStr.match(/"scores"\s*:\s*\{([^}]+)\}/);
+                                if (scoresMatch) {
+                                    result.scores = {};
+                                    const importanceMatch = scoresMatch[1].match(/"importance"\s*:\s*(\d+)/);
+                                    const neglectednessMatch = scoresMatch[1].match(/"neglectedness"\s*:\s*(\d+)/);
+                                    const tractabilityMatch = scoresMatch[1].match(/"tractability"\s*:\s*(\d+)/);
+                                    const costEffectivenessMatch = scoresMatch[1].match(/"cost_effectiveness"\s*:\s*(\d+)/);
+                                    
+                                    if (importanceMatch) result.scores.importance = parseInt(importanceMatch[1]);
+                                    if (neglectednessMatch) result.scores.neglectedness = parseInt(neglectednessMatch[1]);
+                                    if (tractabilityMatch) result.scores.tractability = parseInt(tractabilityMatch[1]);
+                                    if (costEffectivenessMatch) result.scores.cost_effectiveness = parseInt(costEffectivenessMatch[1]);
+                                }
+                                
+                                // Extract risk_score
+                                const riskMatch = jsonStr.match(/"risk_score"\s*:\s*(\d+)/);
+                                if (riskMatch) result.risk_score = parseInt(riskMatch[1]);
+                                
+                                // Extract botec_summary
+                                const botecMatch = jsonStr.match(/"botec_summary"\s*:\s*"([^"]+)"/);
+                                if (botecMatch) result.botec_summary = botecMatch[1];
+                                
+                                // Extract overall_score
+                                const overallMatch = jsonStr.match(/"overall_score"\s*:\s*([\d.]+)/);
+                                if (overallMatch) result.overall_score = parseFloat(overallMatch[1]);
+                                
+                                // Extract markdown_report - get everything between the quotes, handling multiline
+                                const markdownStart = jsonStr.indexOf('"markdown_report"');
+                                if (markdownStart !== -1) {
+                                    const colonPos = jsonStr.indexOf(':', markdownStart);
+                                    const firstQuote = jsonStr.indexOf('"', colonPos);
+                                    if (firstQuote !== -1) {
+                                        // Find the end - look for the last " before the closing brace
+                                        let lastQuote = jsonStr.lastIndexOf('"');
+                                        // But make sure it's after the first quote and before the final }
+                                        while (lastQuote > firstQuote && jsonStr.substring(lastQuote - 1, lastQuote + 2).match(/[^\\]"[,\s]*\}/)) {
+                                            const beforeLast = jsonStr.lastIndexOf('"', lastQuote - 1);
+                                            if (beforeLast <= firstQuote) break;
+                                            lastQuote = beforeLast;
+                                        }
+                                        
+                                        if (lastQuote > firstQuote) {
+                                            let markdownContent = jsonStr.substring(firstQuote + 1, lastQuote);
+                                            // Unescape what we can
+                                            markdownContent = markdownContent
+                                                .replace(/\\n/g, '\n')
+                                                .replace(/\\r/g, '\r')
+                                                .replace(/\\t/g, '\t')
+                                                .replace(/\\"/g, '"')
+                                                .replace(/\\\\/g, '\\');
+                                            result.markdown_report = markdownContent;
+                                        }
+                                    }
+                                }
+                                
+                                // Validate we got the essential fields
+                                if (result.verdict && result.scores) {
+                                    console.warn("Used fallback JSON extraction due to parsing errors");
+                                    return result;
+                                }
+                                
+                                throw e3;
+                            } catch (e4) {
+                                console.error("All JSON parse attempts failed", { e1, e2, e3, e4, jsonStr: jsonStr.substring(0, 1000) });
+                                throw new Error(`JSON parsing failed after multiple attempts. Last error: ${e4.message}. Response preview: ${cleaned.substring(0, 200)}...`);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                throw new Error(`Failed to parse AI response as JSON: ${e.message}`);
+            }
+        }
+
+        // --- Event Listeners Setup (Run after DOM loads) ---
+        document.addEventListener('DOMContentLoaded', () => {
+            log("EA Grant Auditor ready. Backend API connected.", "success");
+            
+            // Reset button
+            document.getElementById('resetBtn').addEventListener('click', resetApp);
+            
+            // Remove file button
+            document.getElementById('removeFileBtn').addEventListener('click', removeFile);
+            
+            // Analyze button
+            document.getElementById('analyzeBtn').addEventListener('click', processDocument);
+            
+            // Export button
+            document.getElementById('exportBtn').addEventListener('click', exportReport);
+            
+            // AI Tool buttons
+            document.querySelectorAll('.ai-tool-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const action = e.currentTarget.getAttribute('data-action');
+                    runAIAction(action);
+                });
+            });
+
+            // Toggle Auditor Log
+            document.getElementById('toggleLogBtn').addEventListener('click', () => {
+                const container = document.getElementById('statusLogContainer');
+                const icon = document.getElementById('logToggleIcon');
+                const isHidden = container.classList.contains('hidden');
+                
+                if (isHidden) {
+                    container.classList.remove('hidden');
+                    icon.classList.add('rotate-180');
+                } else {
+                    container.classList.add('hidden');
+                    icon.classList.remove('rotate-180');
+                }
+            });
+
+            // Initialize EmailJS (using public key - you'll need to set up EmailJS account)
+            // For now, we'll use a fallback method
+            if (typeof emailjs !== 'undefined') {
+                emailjs.init("YOUR_PUBLIC_KEY"); // Replace with your EmailJS public key
+            }
+
+            // Feedback Modal Handlers
+            const feedbackBtn = document.getElementById('feedbackBtn');
+            const feedbackModal = document.getElementById('feedbackModal');
+            const closeFeedbackModal = document.getElementById('closeFeedbackModal');
+            const feedbackCancelBtn = document.getElementById('feedbackCancelBtn');
+            const feedbackForm = document.getElementById('feedbackForm');
+
+            // Open modal
+            feedbackBtn.addEventListener('click', () => {
+                feedbackModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            });
+
+            // Close modal handlers
+            const closeModal = () => {
+                feedbackModal.classList.add('hidden');
+                document.body.style.overflow = ''; // Restore scrolling
+                resetFeedbackForm();
+            };
+
+            closeFeedbackModal.addEventListener('click', closeModal);
+            feedbackCancelBtn.addEventListener('click', closeModal);
+
+            // Close on backdrop click
+            feedbackModal.addEventListener('click', (e) => {
+                if (e.target === feedbackModal) {
+                    closeModal();
+                }
+            });
+
+            // Form submission
+            feedbackForm.addEventListener('submit', handleFeedbackSubmit);
+        });
+
+        // --- Feedback System Functions ---
+        
+        /**
+         * Reset feedback form to initial state
+         */
+        function resetFeedbackForm() {
+            document.getElementById('feedbackForm').reset();
+            document.getElementById('feedbackError').classList.add('hidden');
+            document.getElementById('feedbackSuccess').classList.add('hidden');
+            document.getElementById('feedbackFallback').classList.add('hidden');
+            document.getElementById('feedbackSubmitBtn').disabled = false;
+            document.getElementById('submitBtnText').classList.remove('hidden');
+            document.getElementById('submitBtnSpinner').classList.add('hidden');
+        }
+
+        /**
+         * Validate feedback form
+         */
+        function validateFeedbackForm() {
+            const liked = document.getElementById('feedbackLiked').value.trim();
+            const improved = document.getElementById('feedbackImproved').value.trim();
+            const comments = document.getElementById('feedbackComments').value.trim();
+            const email = document.getElementById('feedbackEmail').value.trim();
+
+            // At least one feedback field should be filled
+            if (!liked && !improved && !comments) {
+                showFeedbackError('Please provide at least one piece of feedback.');
+                return false;
+            }
+
+            // Validate email format if provided
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                showFeedbackError('Please enter a valid email address.');
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * Show error message in feedback form
+         */
+        function showFeedbackError(message) {
+            const errorDiv = document.getElementById('feedbackError');
+            const errorText = document.getElementById('feedbackErrorText');
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        /**
+         * Show fallback options when email service fails
+         */
+        function showFeedbackFallback(formData) {
+            const fallbackDiv = document.getElementById('feedbackFallback');
+            fallbackDiv.classList.remove('hidden');
+            
+            // Format email content
+            const emailBody = `EA Grant Auditor - Feedback Submission
+
+What did you like?
+${formData.liked || 'N/A'}
+
+What can be improved?
+${formData.improved || 'N/A'}
+
+Additional comments:
+${formData.comments || 'N/A'}
+
+Contact Email: ${formData.email || 'Not provided'}
+Submitted: ${new Date(formData.timestamp).toLocaleString()}`;
+
+            // Set up mailto link
+            const mailtoLink = document.getElementById('mailtoLink');
+            mailtoLink.href = `mailto:habeebabdulfatahh@gmail.com?subject=EA Grant Auditor Feedback&body=${encodeURIComponent(emailBody)}`;
+
+            // Set up copy to clipboard
+            document.getElementById('copyFeedbackBtn').addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(emailBody);
+                    const btn = document.getElementById('copyFeedbackBtn');
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    btn.classList.add('bg-green-100', 'text-green-700');
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.classList.remove('bg-green-100', 'text-green-700');
+                    }, 2000);
+                } catch (err) {
+                    alert('Could not copy to clipboard. Please use the email link instead.');
+                }
+            }, { once: true });
+            
+            fallbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        /**
+         * Handle feedback form submission
+         */
+        async function handleFeedbackSubmit(e) {
+            e.preventDefault();
+
+            // Validate form
+            if (!validateFeedbackForm()) {
+                return;
+            }
+
+            // Get form data
+            const formData = {
+                liked: document.getElementById('feedbackLiked').value.trim(),
+                improved: document.getElementById('feedbackImproved').value.trim(),
+                comments: document.getElementById('feedbackComments').value.trim(),
+                email: document.getElementById('feedbackEmail').value.trim(),
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent
+            };
+
+            // Hide error, show loading
+            document.getElementById('feedbackError').classList.add('hidden');
+            document.getElementById('feedbackSubmitBtn').disabled = true;
+            document.getElementById('submitBtnText').classList.add('hidden');
+            document.getElementById('submitBtnSpinner').classList.remove('hidden');
+
+            try {
+                // Use Web3Forms (works immediately, no setup needed for basic use)
+                await sendFeedbackViaWeb3Forms(formData);
+
+                // Show success message
+                document.getElementById('feedbackSuccess').classList.remove('hidden');
+                document.getElementById('feedbackSuccess').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                // Auto-close after 2.5 seconds
+                setTimeout(() => {
+                    document.getElementById('feedbackModal').classList.add('hidden');
+                    document.body.style.overflow = '';
+                    resetFeedbackForm();
+                }, 2500);
+
+            } catch (error) {
+                console.error('Feedback submission error:', error);
+                
+                // Show fallback options
+                showFeedbackFallback(formData);
+                
+                // Also show error message
+                let errorMessage = 'Automatic submission failed. Use the options below to send your feedback.';
+                showFeedbackError(errorMessage);
+                
+                document.getElementById('feedbackSubmitBtn').disabled = false;
+                document.getElementById('submitBtnText').classList.remove('hidden');
+                document.getElementById('submitBtnSpinner').classList.add('hidden');
+            }
+        }
+
+        /**
+         * Send feedback via EmailJS
+         * Note: You'll need to set up EmailJS account and replace these values
+         */
+        async function sendFeedbackViaEmailJS(formData) {
+            // EmailJS configuration - REPLACE WITH YOUR VALUES
+            const serviceID = 'YOUR_SERVICE_ID';
+            const templateID = 'YOUR_TEMPLATE_ID';
+            const publicKey = 'YOUR_PUBLIC_KEY';
+
+            const templateParams = {
+                to_email: 'habeebabdulfatahh@gmail.com',
+                from_email: formData.email || 'anonymous@feedback.com',
+                liked: formData.liked || 'N/A',
+                improved: formData.improved || 'N/A',
+                comments: formData.comments || 'N/A',
+                timestamp: formData.timestamp,
+                user_agent: formData.userAgent
+            };
+
+            await emailjs.send(serviceID, templateID, templateParams, publicKey);
+        }
+
+        /**
+         * Send feedback via FormSubmit.co
+         * This service works immediately without any setup or API keys
+         * It sends emails directly to the specified address
+         */
+        async function sendFeedbackViaWeb3Forms(formData) {
+            // Format email body for better readability
+            const emailBody = `
+Feedback Submission - EA Grant Auditor
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHAT DID YOU LIKE?
+${formData.liked || 'N/A'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHAT CAN BE IMPROVED?
+${formData.improved || 'N/A'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ADDITIONAL COMMENTS:
+${formData.comments || 'N/A'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Contact Email: ${formData.email || 'Not provided'}
+Submitted: ${new Date(formData.timestamp).toLocaleString()}
+            `.trim();
+
+            // Build the message content
+            let messageContent = emailBody;
+            if (formData.email) {
+                messageContent += `\n\nReply to: ${formData.email}`;
+            }
+
+            // Use multiple email services for reliability
+            // Method 1: FormSubmit.co (primary)
+            // Method 2: Direct email via mailto as backup
+            
+            const formDataToSend = new FormData();
+            formDataToSend.append('email', 'habeebabdulfatahh@gmail.com');
+            formDataToSend.append('subject', 'EA Grant Auditor - Feedback Submission');
+            formDataToSend.append('message', messageContent);
+            if (formData.email) {
+                formDataToSend.append('_replyto', formData.email);
+            }
+            formDataToSend.append('_captcha', 'false');
+            formDataToSend.append('_template', 'box');
+            formDataToSend.append('_next', window.location.href);
+
+            try {
+                // Try multiple email methods for maximum reliability
+                let emailSent = false;
+                let lastError = null;
+
+                // Method 1: Try webhook first (most reliable if configured)
+                // SETUP: Get webhook URL from Zapier/Make.com (see EMAIL-WEBHOOK-SETUP.md)
+                const webhookUrl = ''; // Add your webhook URL here: 'https://hooks.zapier.com/hooks/catch/...'
+                
+                if (webhookUrl) {
+                    try {
+                        const webhookResponse = await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                to: 'habeebabdulfatahh@gmail.com',
+                                subject: 'EA Grant Auditor - Feedback Submission',
+                                body: messageContent,
+                                replyTo: formData.email || undefined,
+                                liked: formData.liked || 'N/A',
+                                improved: formData.improved || 'N/A',
+                                comments: formData.comments || 'N/A',
+                                timestamp: formData.timestamp
+                            })
+                        });
+
+                        if (webhookResponse.ok) {
+                            console.log('✅ Feedback sent via webhook');
+                            emailSent = true;
+                        }
+                    } catch (webhookError) {
+                        console.log('Webhook failed:', webhookError);
+                        lastError = webhookError;
+                    }
+                }
+
+                // Method 2: Try Web3Forms (works without setup, but rate limited)
+                if (!emailSent) {
+                    try {
+                        const web3formsData = new FormData();
+                        // Get free access key from https://web3forms.com (optional but recommended)
+                        web3formsData.append('access_key', 'f9cf9aeb-dc2b-446f-be29-5bf419ce403f');
+                        web3formsData.append('subject', 'EA Grant Auditor - Feedback Submission');
+                        web3formsData.append('email', 'habeebabdulfatahh@gmail.com');
+                        web3formsData.append('message', messageContent);
+                        web3formsData.append('from_name', formData.email ? formData.email.split('@')[0] : 'Anonymous');
+                        if (formData.email) {
+                            web3formsData.append('replyto', formData.email);
+                        }
+
+                        const web3Response = await fetch('https://api.web3forms.com/submit', {
+                            method: 'POST',
+                            body: web3formsData
+                        });
+
+                        const web3Result = await web3Response.json();
+                        if (web3Result.success) {
+                            console.log('✅ Feedback sent via Web3Forms');
+                            emailSent = true;
+                        } else {
+                            lastError = new Error(web3Result.message || 'Web3Forms failed');
+                        }
+                    } catch (web3Error) {
+                        console.log('Web3Forms failed:', web3Error);
+                        lastError = web3Error;
+                    }
+                }
+
+                // Method 3: Try FormSubmit.co (backup)
+                if (!emailSent) {
+                    try {
+                        const formSubmitData = new FormData();
+                        formSubmitData.append('email', 'habeebabdulfatahh@gmail.com');
+                        formSubmitData.append('subject', 'EA Grant Auditor - Feedback Submission');
+                        formSubmitData.append('message', messageContent);
+                        if (formData.email) {
+                            formSubmitData.append('_replyto', formData.email);
+                        }
+                        formSubmitData.append('_captcha', 'false');
+                        formSubmitData.append('_template', 'box');
+
+                        const fsResponse = await fetch('https://formsubmit.co/ajax/habeebabdulfatahh@gmail.com', {
+                            method: 'POST',
+                            body: formSubmitData,
+                            headers: {
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        const fsResult = await fsResponse.json().catch(() => ({ success: true }));
+                        if (fsResponse.ok && fsResult.success !== false) {
+                            console.log('✅ Feedback sent via FormSubmit.co');
+                            emailSent = true;
+                        } else {
+                            lastError = new Error(fsResult.message || 'FormSubmit failed');
+                        }
+                    } catch (fsError) {
+                        console.log('FormSubmit failed:', fsError);
+                        lastError = fsError;
+                    }
+                }
+
+                if (emailSent) {
+                    return { success: true, message: 'Feedback submitted successfully' };
+                } else {
+                    // Log the feedback for manual processing
+                    console.error('📧 All email methods failed. Feedback data:', {
+                        to: 'habeebabdulfatahh@gmail.com',
+                        subject: 'EA Grant Auditor - Feedback Submission',
+                        body: messageContent,
+                        error: lastError?.message
+                    });
+                    throw new Error('Automatic email delivery failed. Please use the options below to send your feedback.');
+                }
+            } catch (error) {
+                console.error('FormSubmit error:', error);
+                
+                // Fallback: Try EmailJS if configured
+                if (typeof emailjs !== 'undefined') {
+                    try {
+                        const emailjsResult = await sendFeedbackViaEmailJS(formData);
+                        if (emailjsResult) return { success: true };
+                    } catch (emailjsError) {
+                        console.error('EmailJS error:', emailjsError);
+                    }
+                }
+                
+                // If all methods fail, show helpful error with email option
+                throw new Error('Unable to send feedback automatically. Please email your feedback directly to habeebabdulfatahh@gmail.com with the subject "EA Grant Auditor Feedback"');
+            }
+        }
+
+        /**
+         * Backup email sending method using Web3Forms
+         * This ensures emails are delivered even if FormSubmit fails
+         */
+        async function sendFeedbackBackup(formData, messageContent) {
+            try {
+                // Use Web3Forms as backup (requires free access key from web3forms.com)
+                // For now, we'll use a simple POST to ensure delivery
+                // You can get a free access key from https://web3forms.com
+                const web3formsKey = ''; // Optional: Add your Web3Forms access key here
+                
+                if (web3formsKey) {
+                    const backupFormData = new FormData();
+                    backupFormData.append('access_key', web3formsKey);
+                    backupFormData.append('subject', 'EA Grant Auditor - Feedback Submission (Backup)');
+                    backupFormData.append('email', 'habeebabdulfatahh@gmail.com');
+                    backupFormData.append('message', messageContent);
+                    if (formData.email) {
+                        backupFormData.append('replyto', formData.email);
+                    }
+
+                    await fetch('https://api.web3forms.com/submit', {
+                        method: 'POST',
+                        body: backupFormData
+                    });
+                }
+            } catch (error) {
+                console.log('Backup email method failed (non-critical):', error);
+                // Non-critical, don't throw error
+            }
+        }
+
+        // --- UI Logic ---
+        function resetApp() {
+            location.reload();
+        }
+
+        // --- File Handling ---
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        function handleFile(file) {
+            if (!file) return;
+            
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileInfo').classList.remove('hidden');
+            document.getElementById('uploadZone').classList.add('hidden');
+            
+            log(`Processing file: ${file.name}...`);
+            
+            const reader = new FileReader();
+            const type = file.name.split('.').pop().toLowerCase();
+
+            if (type === 'pdf') {
+                reader.onload = function() { parsePDF(this.result); };
+                reader.readAsArrayBuffer(file);
+            } else if (type === 'docx') {
+                reader.onload = function() { parseDocx(this.result); };
+                reader.readAsArrayBuffer(file);
+            } else if (type === 'txt') {
+                reader.onload = function() { 
+                    extractedText = this.result; 
+                    enableAnalyze(); 
+                    log("Text extraction complete.", "success");
+                };
+                reader.readAsText(file);
+            } else {
+                log("Unsupported file format.", "error");
+                alert("Please upload PDF, DOCX, or TXT.");
+            }
+        }
+
+        async function parsePDF(data) {
+            try {
+                const pdf = await pdfjsLib.getDocument(data).promise;
+                let fullText = "";
+                log(`PDF Loaded. Pages: ${pdf.numPages}`);
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + "\n";
+                }
+                
+                extractedText = fullText;
+                enableAnalyze();
+                log("PDF extraction complete.", "success");
+            } catch (e) {
+                log("Error parsing PDF: " + e.message, "error");
+            }
+        }
+
+        function parseDocx(data) {
+            mammoth.extractRawText({arrayBuffer: data})
+                .then(result => {
+                    extractedText = result.value;
+                    enableAnalyze();
+                    log("DOCX extraction complete.", "success");
+                })
+                .catch(err => {
+                    log("Error parsing DOCX: " + err.message, "error");
+                });
+        }
+
+        function enableAnalyze() {
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+            btn.classList.add('bg-ea-blue', 'hover:bg-blue-600', 'text-white', 'shadow-md');
+            
+            // Update character count and show warning if large
+            const charCount = extractedText.length;
+            document.getElementById('charCount').textContent = charCount.toLocaleString();
+            const warningEl = document.getElementById('sizeWarning');
+            if (charCount > 20000) {
+                warningEl.classList.remove('hidden');
+            } else {
+                warningEl.classList.add('hidden');
+            }
+        }
+
+        function removeFile() {
+            extractedText = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileInfo').classList.add('hidden');
+            document.getElementById('uploadZone').classList.remove('hidden');
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
+            btn.classList.remove('bg-ea-blue', 'hover:bg-blue-600', 'text-white');
+        }
+
+        // --- AI Integration ---
+        async function processDocument() {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            document.getElementById('analyzeBtn').innerHTML = '<div class="spinner"></div> <span class="ml-2">Evaluating...</span>';
+            log("Initializing Grant Auditor Persona...");
+            
+            const systemPrompt = `You are an expert Effective Altruism (EA) Grant Evaluator, following frameworks from GiveWell, Open Philanthropy, 80,000 Hours, and EA Funds. Evaluate this proposal with extreme rigor, skepticism, and quantitative analysis.
+
+## EVALUATION FRAMEWORK (Based on Real EA Organizations)
+
+### 1. INT Framework (Importance × Neglectedness × Tractability)
+
+**Importance (0-10)**: Scale and significance of the problem
+- 9-10: Existential risks, global catastrophic risks, or problems affecting billions
+- 7-8: Major global problems (poverty, disease, climate) affecting millions
+- 5-6: Significant regional problems or important but limited scope
+- 3-4: Moderate problems with meaningful impact
+- 1-2: Limited scope or unclear importance
+- 0: Trivial or no clear problem addressed
+
+**Neglectedness (0-10)**: How underfunded/under-researched the area is
+- 9-10: Extremely neglected (<0.1% of relevant funding, little research)
+- 7-8: Highly neglected (<1% of relevant funding)
+- 5-6: Moderately neglected (some funding but significant gaps)
+- 3-4: Somewhat neglected (funding exists but could use more)
+- 1-2: Well-funded area
+- 0: Overfunded or saturated
+
+**Tractability (0-10)**: How solvable/actionable the problem is
+- 9-10: Clear solutions exist, strong evidence of effectiveness
+- 7-8: Promising approaches with good evidence
+- 5-6: Some evidence but uncertainty remains
+- 3-4: Unclear if solutions exist, limited evidence
+- 1-2: Very difficult problem, weak evidence
+- 0: Intractable or no clear path forward
+
+### 2. Cost-Effectiveness Analysis (0-10)
+
+Perform a BOTEC (Back of the Envelope Calculation). Compare to benchmarks:
+- **GiveWell top charities**: ~$50-100 per DALY (Disability-Adjusted Life Year)
+- **AMF (Against Malaria Foundation)**: ~$100/DALY
+- **Open Philanthropy grants**: Varies widely, but typically $100-10,000 per equivalent impact unit
+- **80,000 Hours top priorities**: Often focus on tractability over direct cost-effectiveness
+
+Score based on:
+- 9-10: Comparable or better than GiveWell top charities
+- 7-8: Within 2-5x of GiveWell benchmarks
+- 5-6: Within 5-20x of GiveWell benchmarks
+- 3-4: 20-100x less cost-effective
+- 1-2: >100x less cost-effective
+- 0: No clear cost-effectiveness or negative impact
+
+### 3. Theory of Change & Evidence Base
+
+Evaluate:
+- Causal chain clarity: Inputs → Activities → Outputs → Outcomes → Impact
+- Evidence quality: RCTs, quasi-experimental, observational, or theoretical
+- Counterfactual: What happens without this intervention?
+- Comparison to similar interventions
+
+### 4. Organizational Capacity & Track Record
+
+Assess:
+- Team expertise and qualifications
+- Previous successes/failures
+- Financial management
+- Monitoring and evaluation systems
+
+### 5. Risk Assessment (0-100, where 100 = high risk)
+
+Consider:
+- Implementation risks (can they execute?)
+- Evidence risks (is the evidence base weak?)
+- External risks (regulatory, political, market)
+- Infohazards or negative externalities
+- Financial risks (budget overruns, sustainability)
+
+### 6. Verdict Categories
+
+- **Strongly Recommend**: High INT scores, strong evidence, excellent cost-effectiveness
+- **Recommend with Revisions**: Good potential but needs improvements (specify what)
+- **Weak Recommend**: Some merit but significant concerns
+- **Reject**: Low scores, weak evidence, or major red flags
+
+## OUTPUT FORMAT (JSON ONLY - CRITICAL: All strings must be properly escaped):
+
+{
+    "verdict": "String (e.g., Recommend with Revisions)",
+    "scores": {
+        "importance": Number (0-10),
+        "neglectedness": Number (0-10),
+        "tractability": Number (0-10),
+        "cost_effectiveness": Number (0-10)
+    },
+    "risk_score": Number (0-100, where 100 is high risk),
+    "botec_summary": "Short string summarizing the math (e.g., '$400/DALY' or 'Comparable to GiveWell top charities')",
+    "overall_score": Number (0-10, calculated as weighted average or INT product),
+    "markdown_report": "Full detailed report in Markdown format. Structure: ## Executive Summary, ## INT Analysis, ## Cost-Effectiveness, ## Theory of Change, ## Evidence Base, ## Organizational Assessment, ## Risks, ## Comparison to EA Benchmarks, ## Recommendations. IMPORTANT: Escape all quotes, newlines, and special characters. Use \\n for newlines, \\\" for quotes, \\\\ for backslashes."
+}
+
+CRITICAL JSON RULES:
+- All string values must have quotes escaped: use \\\" not "
+- Newlines in markdown_report must be escaped as \\n
+- No trailing commas
+- All keys must be in double quotes
+- The markdown_report field must be a single properly escaped JSON string`;
+
+            // Limit document size to avoid rate limits (reduce from 30k to 20k chars)
+            const maxDocLength = 20000;
+            const docPreview = extractedText.length > maxDocLength 
+                ? extractedText.substring(0, maxDocLength) + "\n\n[Document truncated - showing first " + maxDocLength + " characters]"
+                : extractedText;
+            
+            if (extractedText.length > maxDocLength) {
+                log(`Document is large (${extractedText.length} chars). Analyzing first ${maxDocLength} chars to avoid rate limits.`, "info");
+            }
+            
+            const userMessage = `Evaluate this proposal text:\n\n${docPreview}`; 
+
+            let resultText = '';
+            
+            // Retry function with exponential backoff
+            const makeRequestWithRetry = async (maxRetries = 3) => {
+                for (let attempt = 0; attempt < maxRetries; attempt++) {
+                    try {
+                        if (attempt > 0) {
+                            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // Max 30 seconds
+                            log(`Rate limit hit. Retrying in ${waitTime/1000} seconds... (Attempt ${attempt + 1}/${maxRetries})`, "info");
+                            document.getElementById('analyzeBtn').innerHTML = `<div class="spinner"></div> <span class="ml-2">Retrying in ${Math.ceil(waitTime/1000)}s...</span>`;
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                        }
+                        
+                        log(attempt === 0 ? "Sending to backend API..." : `Retry attempt ${attempt + 1}...`, "info");
+                
+                // Call backend proxy instead of directly calling Gemini
+                const response = await fetch(`${API_BASE_URL}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: [{ text: systemPrompt + "\n\n" + userMessage }]
+                        }],
+                        generationConfig: {
+                            responseMimeType: "application/json"
+                        }
+                    })
+                });
+
+                const responseData = await response.json();
+                
+                // Handle backend errors
+                if (!response.ok || !responseData.success) {
+                    const errorMessage = responseData.error || 'Unknown error';
+                    const errorCode = responseData.code || response.status;
+                    
+                    if (errorCode === 429) {
+                        throw new Error('RATE_LIMIT');
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                // Extract text from backend response
+                const data = { candidates: [{ content: { parts: [{ text: responseData.text }] } }] };
+                        
+                        // Check for rate limit errors
+                        if (data.error) {
+                            const errorCode = data.error.code || 0;
+                            const errorMessage = data.error.message || '';
+                            
+                            // Handle rate limit (429) or resource exhausted errors
+                            if (errorCode === 429 || errorMessage.includes('429') || errorMessage.includes('Resource exhausted') || errorMessage.includes('quota')) {
+                                if (attempt < maxRetries - 1) {
+                                    throw new Error('RATE_LIMIT'); // Will trigger retry
+                                } else {
+                                    throw new Error(`Rate limit exceeded. Please wait a few minutes and try again. Error: ${errorMessage}`);
+                                }
+                            } else {
+                                throw new Error(errorMessage);
+                            }
+                        }
+                        
+                        return data.candidates[0].content.parts[0].text;
+                        
+                    } catch (e) {
+                        if (e.message === 'RATE_LIMIT' && attempt < maxRetries - 1) {
+                            continue; // Retry
+                        }
+                        throw e; // Re-throw if not a rate limit or if max retries reached
+                    }
+                }
+            };
+            
+            try {
+                resultText = await makeRequestWithRetry();
+                log("Raw response received (" + resultText.length + " chars)", "info");
+                
+                // USE THE NEW CLEANER FUNCTION HERE
+                const resultJson = cleanAndParseJSON(resultText);
+                
+                log("Analysis received. Rendering...");
+                renderResults(resultJson);
+
+            } catch (e) {
+                log("API Error: " + e.message, "error");
+                
+                // Provide helpful error messages
+                if (e.message.includes('Rate limit') || e.message.includes('429') || e.message.includes('Resource exhausted') || e.message.includes('quota')) {
+                    log("💡 Tip: Rate limits are temporary. Try:", "error");
+                    log("  1. Wait 1-2 minutes before retrying", "error");
+                    log("  2. Use a shorter document (current: " + extractedText.length + " chars)", "error");
+                    log("  3. Check your API quota at https://aistudio.google.com/app/apikey", "error");
+                    alert("Rate limit exceeded. The API has temporary usage limits.\n\nPlease wait 1-2 minutes and try again, or use a shorter document.\n\nCheck your API quota: https://aistudio.google.com/app/apikey");
+                } else {
+                    // Log a portion of the response for debugging if available
+                    if (resultText) {
+                        log("Response preview: " + resultText.substring(0, 500), "error");
+                        console.error("Full response:", resultText);
+                    }
+                    alert("Analysis failed: " + e.message + "\n\nDetails in log.");
+                }
+            } finally {
+                isProcessing = false;
+                document.getElementById('analyzeBtn').innerHTML = 'Evaluate Proposal';
+            }
+        }
+
+        // --- Helper Tools Logic ---
+        async function runAIAction(type) {
+            if (!apiKey) { alert("API Key missing."); return; }
+            if (isProcessing) return;
+            
+            const logEl = document.getElementById('statusLog');
+            let prompt = "";
+            let title = "";
+
+            // Configuration for tools
+            if (type === 'redteam') {
+                title = "🔥 Red Team Pre-Mortem";
+                log("Starting Red Team Analysis...");
+                prompt = `You are a hostile "Red Team" evaluator. Assume this project has failed miserably 2 years from now. 
+                Write a "Pre-Mortem" explaining exactly why. Focus on:
+                1. Operational failure modes (staff corruption, technical failure).
+                2. External risks (gov regulation, lack of adoption).
+                3. Theory of Change breaks.
+                
+                Be harsh, brief, and bulleted.`;
+            } else if (type === 'budget') {
+                title = "✨ Budget Reality Check";
+                log("Starting Budget Audit...");
+                prompt = `You are a Forensic Accountant for an NGO. Extract all budget items mentioned in the text. 
+                For each item, estimate the true market price (using your training data) vs the requested price.
+                Highlight significant discrepancies (>20% variance).
+                
+                Format as a Markdown Table: | Item | Requested | Est. Market Value | Verdict |`;
+            } else if (type === 'logic') {
+                title = "🧠 Logic Model Builder";
+                log("Generating Logic Model...");
+                prompt = `Create a formal Logic Model for this proposal.
+                Structure it strictly as:
+                1. **Inputs** (Resources needed)
+                2. **Activities** (What they do)
+                3. **Outputs** (Direct products)
+                4. **Outcomes** (Short/Med term changes)
+                5. **Impact** (Long term goal)
+                
+                Identify any gaps where activities do not logically lead to outcomes.`;
+            }
+
+            isProcessing = true;
+            const mdOutput = document.getElementById('markdownOutput');
+            // Append a loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'mt-8 p-4 border-l-4 border-gray-300 bg-gray-50';
+            loadingDiv.innerHTML = `<p class="text-sm font-mono animate-pulse">Generating ${title}...</p>`;
+            mdOutput.prepend(loadingDiv);
+
+            // Helper function for retry logic
+            const makeToolRequestWithRetry = async (promptText, contextText, maxRetries = 3) => {
+                for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                        if (attempt > 0) {
+                            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                        }
+                        
+                // Call backend proxy instead of directly calling Gemini
+                const response = await fetch(`${API_BASE_URL}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: "user",
+                            parts: [{ text: promptText + "\n\nContext:\n" + contextText }]
+                        }]
+                    })
+                });
+
+                const responseData = await response.json();
+                
+                // Handle backend errors
+                if (!response.ok || !responseData.success) {
+                    const errorMessage = responseData.error || 'Unknown error';
+                    const errorCode = responseData.code || response.status;
+                    
+                    if (errorCode === 429) {
+                        throw new Error('RATE_LIMIT');
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                return responseData.text;
+                    } catch (e) {
+                        if (e.message === 'RATE_LIMIT' && attempt < maxRetries - 1) {
+                            continue;
+                        }
+                        throw e;
+                    }
+                }
+            };
+
+            try {
+                // Reduce context size for tools to avoid rate limits
+                const toolContext = extractedText.substring(0, 15000);
+                const aiText = await makeToolRequestWithRetry(prompt, toolContext);
+
+                // Remove loader
+                loadingDiv.remove();
+
+                // Append Result
+                const newSection = document.createElement('div');
+                newSection.className = 'mb-8 p-6 rounded-lg border-l-4 shadow-sm animate-fade-in ' + 
+                    (type === 'redteam' ? 'bg-red-50 border-red-500' : 
+                     type === 'budget' ? 'bg-green-50 border-green-500' : 
+                     'bg-blue-50 border-blue-500');
+                
+                newSection.innerHTML = `
+                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2">
+                        ${title}
+                    </h3>
+                    <div class="markdown-body text-sm">
+                        ${marked.parse(aiText)}
+                    </div>
+                `;
+                
+                // Insert at top of report
+                mdOutput.prepend(newSection);
+                log(`${title} added to report.`, 'success');
+
+            } catch (e) {
+                loadingDiv.remove();
+                log("Tool Error: " + e.message, "error");
+                alert("Tool execution failed.");
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        // --- Rendering ---
+        function renderResults(data) {
+            document.getElementById('resultsPlaceholder').classList.add('hidden');
+            const container = document.getElementById('resultsContainer');
+            container.classList.remove('hidden');
+            container.classList.add('flex');
+
+            // 1. Verdict & Scores
+            const verdictEl = document.getElementById('verdictText');
+            verdictEl.textContent = data.verdict;
+            verdictEl.className = "text-xl md:text-2xl font-bold mt-1 " + 
+                (data.verdict.toLowerCase().includes('reject') ? 'text-red-600' : 
+                 data.verdict.toLowerCase().includes('revision') ? 'text-orange-500' : 'text-green-600');
+
+            document.getElementById('scoreImp').textContent = data.scores.importance + "/10";
+            document.getElementById('barImp').style.width = (data.scores.importance * 10) + "%";
+            
+            document.getElementById('scoreNeg').textContent = data.scores.neglectedness + "/10";
+            document.getElementById('barNeg').style.width = (data.scores.neglectedness * 10) + "%";
+            
+            document.getElementById('scoreTra').textContent = data.scores.tractability + "/10";
+            document.getElementById('barTra').style.width = (data.scores.tractability * 10) + "%";
+            
+            document.getElementById('scoreCE').textContent = data.scores.cost_effectiveness + "/10";
+            document.getElementById('barCE').style.width = (data.scores.cost_effectiveness * 10) + "%";
+            
+            // Overall score (INT product or weighted average)
+            const overallScore = data.overall_score || 
+                ((data.scores.importance * data.scores.neglectedness * data.scores.tractability) / 100).toFixed(1);
+            document.getElementById('overallScore').textContent = `Overall: ${overallScore}/10`;
+            
+            // Risk and BOTEC display
+            document.getElementById('riskScoreDisplay').textContent = data.risk_score + "/100";
+            document.getElementById('botecDisplay').textContent = data.botec_summary || "N/A";
+            
+            // Show export button
+            document.getElementById('exportBtn').classList.remove('hidden');
+
+            // 2. Charts
+            renderCostChart(data.scores.cost_effectiveness);
+            renderRiskChart(data.risk_score);
+
+            // 3. Markdown Content
+            document.getElementById('markdownOutput').innerHTML = marked.parse(data.markdown_report);
+
+            log("Evaluation Complete.", "success");
+        }
+
+        function renderCostChart(score) {
+            const ctx = document.getElementById('chartCost').getContext('2d');
+            if (costChart) costChart.destroy();
+            costChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Cost-Effectiveness', 'Inefficiency Gap'],
+                    datasets: [{
+                        data: [score, 10 - score],
+                        backgroundColor: ['#0C8CE9', '#f1f5f9'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    cutout: '75%',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: score + '/10 Score', position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        function renderRiskChart(riskScore) {
+            const ctx = document.getElementById('chartRisk').getContext('2d');
+            if (riskChart) riskChart.destroy();
+            riskChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Risk Level'],
+                    datasets: [{
+                        label: 'Risk',
+                        data: [riskScore],
+                        backgroundColor: riskScore > 50 ? '#EF4444' : '#10B981',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    scales: {
+                        x: { min: 0, max: 100, grid: { display: false } },
+                        y: { display: false }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // --- Export Functionality ---
+        function exportReport() {
+            const reportData = {
+                verdict: document.getElementById('verdictText').textContent,
+                scores: {
+                    importance: document.getElementById('scoreImp').textContent.split('/')[0],
+                    neglectedness: document.getElementById('scoreNeg').textContent.split('/')[0],
+                    tractability: document.getElementById('scoreTra').textContent.split('/')[0],
+                    cost_effectiveness: document.getElementById('scoreCE').textContent.split('/')[0]
+                },
+                risk_score: document.getElementById('riskScoreDisplay').textContent.split('/')[0],
+                botec_summary: document.getElementById('botecDisplay').textContent,
+                overall_score: document.getElementById('overallScore').textContent.split(': ')[1],
+                report: document.getElementById('markdownOutput').innerHTML,
+                timestamp: new Date().toISOString()
+            };
+
+            // Create markdown export
+            const markdown = `# EA Grant Evaluation Report
+Generated: ${new Date().toLocaleString()}
+
+## Verdict
+${reportData.verdict}
+
+## Scores
+- **Importance**: ${reportData.scores.importance}/10
+- **Neglectedness**: ${reportData.scores.neglectedness}/10
+- **Tractability**: ${reportData.scores.tractability}/10
+- **Cost-Effectiveness**: ${reportData.scores.cost_effectiveness}/10
+- **Overall Score**: ${reportData.overall_score}
+- **Risk Score**: ${reportData.risk_score}/100
+- **BOTEC Summary**: ${reportData.botec_summary}
+
+## Full Evaluation Report
+
+${document.getElementById('markdownOutput').textContent || 'No report available'}
+`;
+
+            // Create and download file
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `EA-Grant-Evaluation-${new Date().toISOString().split('T')[0]}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            log("Report exported successfully.", "success");
+        }
+    </script>
+</body>
+</html>
+

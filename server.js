@@ -10,9 +10,23 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// CORS Configuration - Fixed to handle preflight requests
+const corsOptions = {
+  origin: ['https://graev.netlify.app', 'http://localhost:3000', 'http://localhost:5173'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+// Middleware - JSON parser must come BEFORE CORS to avoid issues
 app.use(express.json({ limit: '10mb' }));
+
+// Apply CORS
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 // Rate limiting to prevent abuse
 const limiter = rateLimit({
@@ -127,6 +141,7 @@ app.listen(PORT, () => {
   console.log(`✅ EA Grant Auditor API Server running on port ${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/health`);
   console.log(`🔒 API endpoint: http://localhost:${PORT}/api/generate`);
+  console.log(`🌐 CORS enabled for: https://graev.netlify.app`);
   
   // Verify API key is loaded (but don't print it)
   if (process.env.GEMINI_API_KEY) {
@@ -137,4 +152,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-

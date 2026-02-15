@@ -1,5 +1,4 @@
 // EA Grant Auditor - Backend API Proxy Server (Hardened & Debuggable)
-// This is the improved server.js you should deploy to Render.
 //
 // Key changes included:
 // - Dynamic CORS whitelist via ALLOWED_ORIGINS env var
@@ -253,3 +252,4 @@ const server = app.listen(PORT, () => {
 server.setTimeout(10 * 60 * 1000);
 
 module.exports = app;
+

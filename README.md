@@ -21,36 +21,6 @@ An AI-powered grant evaluation tool that simulates a rigorous Effective Altruism
 - 📥 **Export Functionality**: Download reports as Markdown files
 - 💬 **Feedback System**: Built-in feedback collection
 
-## 🚀 Quick Start
-
-### For GitHub Pages:
-
-1. **Push to GitHub**:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/yourusername/ea-grant-auditor.git
-   git push -u origin main
-   ```
-
-2. **Enable GitHub Pages**:
-   - Go to your repository on GitHub
-   - Click **Settings** → **Pages**
-   - Under **Source**, select **main** branch
-   - Click **Save**
-   - Your site will be live at: `https://yourusername.github.io/ea-grant-auditor/`
-
-### For Netlify:
-
-1. **Deploy via Dashboard**:
-   - Go to [netlify.com](https://www.netlify.com)
-   - Drag and drop the `ea-abu-resources` folder
-   - Your site is live!
-
-2. **Deploy via Git**:
-   - Connect your GitHub repository to Netlify
-   - Auto-deploys on every push
 
 ## 📋 Evaluation Framework
 
@@ -113,6 +83,5 @@ Built with frameworks from GiveWell, Open Philanthropy, 80,000 Hours, and EA Fun
 
 ---
 
-**Live Demo**: [Your GitHub Pages URL]
 
 **Issues**: Report bugs or request features via the feedback button in the app.

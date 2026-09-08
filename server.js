@@ -21,6 +21,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Override with GEMINI_MODEL if this ever needs changing without a deploy.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+
 // --- Request logging for debugging ---
 app.use((req, res, next) => {
   const origin = req.get('origin') || 'no-origin';
@@ -80,7 +83,7 @@ const limiter = rateLimit({
   }
 });
 
-app.use('/api/', limiter);
+app.use(['/api/', '/generate'], limiter);
 
 const generateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -98,13 +101,25 @@ const generateLimiter = rateLimit({
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'EA Grant Auditor API' });
+// Serve the app itself, so the whole thing can run as one service on one origin.
+// The split across two hosts is what let the front end and the back end disagree
+// about a URL path without anything noticing.
+app.use(express.static(__dirname, { extensions: ['html'] }));
+
+// Health check. Registered on both paths for the same reason as /generate below.
+app.get(['/health', '/api/health'], (req, res) => {
+  res.json({ status: 'ok', service: 'EA Grant Auditor API', model: MODEL });
 });
 
-// Proxy endpoint for Gemini API
-app.post('/api/generate', generateLimiter, async (req, res) => {
+// Proxy endpoint for Gemini API.
+//
+// Registered on BOTH '/api/generate' and '/generate' deliberately. The front end
+// calls <origin>/api/generate; the Netlify redirect in front of this service
+// forwards it with the '/api' prefix stripped, so it arrived here as '/generate'
+// and returned "Cannot POST /generate" — a 404 on every evaluation, for as long as
+// the site was deployed, while /api/health kept answering 200 and made it look
+// healthy. Accepting both shapes makes this immune to how the proxy is configured.
+app.post(['/api/generate', '/generate'], generateLimiter, async (req, res) => {
   // Set generous timeout for long-running requests
   req.setTimeout(10 * 60 * 1000); // 10 minutes
 
@@ -126,7 +141,7 @@ app.post('/api/generate', generateLimiter, async (req, res) => {
       });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
 
     // Set timeout for fetch request (10 minutes)
     const controller = new AbortController();
@@ -141,7 +156,11 @@ app.post('/api/generate', generateLimiter, async (req, res) => {
         },
         body: JSON.stringify({
           contents,
-          generationConfig: generationConfig || { responseMimeType: 'application/json' }
+          generationConfig: {
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 0 },
+            ...(generationConfig || {})
+          }
         }),
         signal: controller.signal
       };

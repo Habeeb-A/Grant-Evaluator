@@ -38,12 +38,31 @@ const allowedList = allowedEnv.split(',').map(s => s.trim()).filter(Boolean);
 const corsOptionsDelegate = function (req, callback) {
   const origin = req.header('Origin');
   if (!origin) {
-    // No origin (server-to-server or same-origin request)
+    // Server-to-server, or a same-origin GET.
     return callback(null, { origin: true, credentials: true });
   }
 
   if (allowedList.includes('*')) {
     return callback(null, { origin: true, credentials: true });
+  }
+
+  // Same-origin requests are allowed whatever domain this is deployed on.
+  //
+  // This is not redundant with the check above. A browser omits Origin on a
+  // same-origin GET but SENDS it on a same-origin POST, so once this server also
+  // serves the page, its own domain has to be in the allowlist or every evaluation
+  // fails CORS while /health keeps returning 200 — the same shape of failure as the
+  // routing bug. Comparing against the request's own Host means a single-service
+  // deployment works on any domain without anyone remembering to add it.
+  const host = req.header('X-Forwarded-Host') || req.header('Host');
+  if (host) {
+    try {
+      if (new URL(origin).host === host) {
+        return callback(null, { origin: true, credentials: true });
+      }
+    } catch (e) {
+      // Malformed Origin; fall through to the allowlist.
+    }
   }
 
   if (allowedList.indexOf(origin) !== -1) {

@@ -64,24 +64,12 @@ One model call per evaluation, which keeps it inside a free-tier key.
 
 ## Deploying
 
-The whole app can run as a single service — point your host at `npm start` and set
-`GEMINI_API_KEY`. That is the simplest arrangement and the one to prefer.
+Everything runs on Netlify's free tier: the page is static and the one model call is
+a Netlify Function, so there is no second service to pay for and no proxy in between.
+Set `GEMINI_API_KEY` in the site's environment variables and deploy.
 
-If you keep the split deployment (static site on Netlify, API elsewhere), note the
-failure it caused before: the proxy forwarded `/api/*` with the `/api` prefix
-stripped, so the front end's `POST /api/generate` arrived as `/generate` and returned
-a 404 on **every** evaluation, while `/api/health` kept answering 200 and made the
-site look healthy. The server now answers on both `/api/generate` and `/generate`, so
-it works either way.
-
-Check any deployment with:
-
-```bash
-curl -X POST -H 'Content-Type: application/json' -d '{"contents":[]}' https://your-site/api/generate
-```
-
-A `400` means the route is wired. HTML coming back means the front end and back end
-disagree about the path again.
+Full steps, and the checks that distinguish "the site is up" from "the site can
+actually evaluate anything", are in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ## Limits worth knowing
 

@@ -1,150 +1,145 @@
 # Deploying
 
-Two arrangements work. **Take the first one** — it is fewer moving parts, and it
-removes the failure that made the previous deployment unusable.
+**Everything runs on Netlify's free tier. There is no second service to pay for.**
+
+The page is static and the one model call runs as a Netlify Function, so the front
+end and the API are the same origin. Nothing sits in between to misroute a path, and
+there is no CORS to configure — which is what broke the previous deployment.
+
+`server.js` still exists and still works; it is the easier thing to run locally, and
+it is there if you ever move to a host that runs a long-lived process. Production
+does not use it.
 
 ---
 
-## Option A — everything on Railway, one service (recommended)
-
-The server now serves the page as well as proxying the model call, so the front end
-and the API are the same origin. There is no proxy in between to misroute anything,
-and no CORS to configure.
-
-### 1. Push the code
+## Step 1 — push
 
 ```bash
 cd Grant-Evaluator
 git push origin main
 ```
 
-### 2. Create the Railway service
+## Step 2 — connect the site
 
-1. Go to **railway.com** and sign in with GitHub.
-2. **New Project → Deploy from GitHub repo**.
-3. Pick **Habeeb-A/Grant-Evaluator**.
+If **graev.netlify.app** is already connected to this GitHub repo, skip to step 3.
 
-Railway reads `package.json`, installs dependencies, and runs `npm start`. There is
-nothing to configure for the build.
+Otherwise: **app.netlify.com → Add new site → Import an existing project → GitHub →
+Habeeb-A/Grant-Evaluator**. Leave the build settings alone; `netlify.toml` already
+sets the publish directory and the functions directory.
 
-### 3. Set the API key
+## Step 3 — set the API key
 
-In the service, open **Variables** and add:
+**Site configuration → Environment variables → Add a variable:**
 
-| Name | Value |
+| Key | Value |
 |---|---|
 | `GEMINI_API_KEY` | your Google AI Studio key |
 
-That is the only required variable. Optional ones:
+Optional:
 
-| Name | Default | |
-|---|---|---|
-| `GEMINI_MODEL` | `gemini-3.8-flash` | change the model without a code change |
-| `GENERATE_LIMIT_MAX` | `10` | evaluations per minute per IP |
-| `RATE_LIMIT_MAX` | `50` | total API requests per 15 min per IP |
+| Key | Default |
+|---|---|
+| `GEMINI_MODEL` | `gemini-3.8-flash` |
 
-**Do not set `PORT`.** Railway injects it, and the server already reads it.
+Set the scope to **all deploy contexts** unless you have a reason not to. The key is
+read inside the function and never reaches the browser.
 
-### 4. Give it a public URL
+## Step 4 — deploy
 
-**Settings → Networking → Generate Domain.** You get something like
-`grant-evaluator-production.up.railway.app`.
+**Deploys → Trigger deploy → Deploy site.** Environment variable changes do not take
+effect until a new deploy runs.
 
-### 5. Check it before telling anyone
+## Step 5 — verify, before telling anyone
+
+Two checks. Run both.
 
 ```bash
-curl https://YOUR-APP.up.railway.app/api/health
+curl https://graev.netlify.app/api/health
 ```
 
-Expect `{"status":"ok","service":"EA Grant Auditor API","model":"gemini-3.8-flash"}`.
+Expect exactly this shape:
+
+```json
+{"status":"ok","service":"Grant Evaluator API","model":"gemini-3.8-flash","apiKeyConfigured":true}
+```
+
+- `"apiKeyConfigured": false` or a `503` — the key is not set, or the deploy predates
+  it. Redo steps 3 and 4.
+- **`{"service":"EA Grant Auditor API"}`** (the old name, no `apiKeyConfigured`) — an
+  **old proxy rule is still intercepting `/api/*`** and sending it to the retired
+  Railway backend. Find it under *Site configuration → Build & deploy → Post
+  processing*, or in a stale `_redirects` in a previously deployed branch, and remove
+  it. `netlify.toml` in this repo is now the only place redirects should live.
 
 Then the one that actually matters:
 
 ```bash
 curl -X POST -H 'Content-Type: application/json' -d '{"contents":[]}' \
-  https://YOUR-APP.up.railway.app/api/generate
+  https://graev.netlify.app/api/generate
 ```
 
-- **`400` with a message about `contents`** — correct. The route is wired and the
-  request reached Gemini.
-- **HTML, or `Cannot POST`** — the front end and back end disagree about the path.
-  This is exactly what broke the last deployment.
-- **`500` about a server configuration error** — `GEMINI_API_KEY` is not set.
+- **`400` with "a non-empty contents array is required"** — correct. The route is
+  wired and the function ran.
+- **HTML back** — the catch-all redirect is winning over the API rule. Check that the
+  `/api/*` rules in `netlify.toml` still come *before* the `/*` rule.
+- **`404`** — the function did not deploy. Check the deploy log for a Functions
+  section listing `generate` and `health`.
 
-Finally open the URL in a browser and evaluate a real proposal end to end. A health
-check passing is not evidence that an evaluation works; that assumption is what let
-the previous version sit broken.
-
-### 6. Point your domain at it (optional)
-
-In Railway, **Settings → Networking → Custom Domain**, then add the CNAME it gives
-you at your DNS provider. If you want `graev.netlify.app` retired, delete the Netlify
-site or replace it with a redirect so there is only one live copy.
+Finally, open the site and evaluate a real proposal end to end. **A passing health
+check is not evidence that an evaluation works.** The previous version returned a
+green health check for months while every evaluation 404'd, which is the single
+reason it stayed broken for so long.
 
 ---
 
-## Option B — keep Netlify for the page, Railway for the API
+## What this replaced, so it does not come back
 
-Only worth it if you specifically want Netlify's CDN or an existing domain there.
+The Netlify site proxied `/api/*` to a Railway service with the `/api` prefix
+**stripped**. The front end's `POST /api/generate` arrived there as `/generate`, and
+the server — which served `/api/generate` — answered `Cannot POST /generate`. Every
+evaluation failed. `GET /api/health` kept returning `200` the whole time, because the
+server happened to serve `/health`.
 
-1. Deploy the API to Railway exactly as in Option A, steps 1–5.
-2. In **Netlify → Site configuration → Environment**, nothing is needed; the front
-   end calls `window.location.origin`, so the proxy does the work.
-3. In the Netlify site, make sure a redirect sends the API through. Put it in
-   `netlify.toml` in this repo, **not** in the dashboard, so it is version-controlled:
+Two things now prevent it:
 
-```toml
-[[redirects]]
-  from = "/api/*"
-  to = "https://YOUR-APP.up.railway.app/api/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-```
-
-The `/api/*` rule **must come first** — Netlify applies the first match, and the
-catch-all would otherwise swallow it.
-
-4. Add the Netlify origin to the API's allowlist. In Railway **Variables**:
-
-```
-ALLOWED_ORIGINS = https://graev.netlify.app,https://your-custom-domain.com
-```
-
-5. Run the same `curl` check from step 5 above **against the Netlify URL**, not the
-Railway one. That is the path your users take, and it is the one that was broken.
-
-### What went wrong here last time
-
-The dashboard redirect forwarded `/api/*` to the API with the `/api` prefix
-**stripped**, so `POST /api/generate` arrived at the server as `/generate` and
-returned `Cannot POST /generate`. Every evaluation 404'd for as long as the site was
-up, while `GET /api/health` kept returning `200` because the server happened to serve
-`/health` — so it looked healthy the entire time.
-
-The server now answers on **both** `/api/generate` and `/generate`, so it survives
-either redirect shape. The `curl` check in step 5 is what catches it if it recurs.
+1. There is no proxy. The function is on the same origin as the page.
+2. `server.js` answers on **both** `/api/generate` and `/generate`, so it survives
+   either redirect shape if you ever put it behind a proxy again.
 
 ---
 
 ## After it is live
 
-**Rate limits are the thing that will bite you.** A free-tier Gemini key has a
-per-minute request cap. One evaluation is one call, so light use is fine, but if
-several people evaluate at once they will get failures until the window resets. If
-the tool gets traction, that is the first thing to pay for.
+**Rate limits are what will bite you.** A free-tier Gemini key has a per-minute
+request cap. One evaluation is one call, so light use is fine, but several people
+evaluating at once will get failures until the window resets. Users see a clear
+message rather than a hang. This is the first thing worth paying for if the tool gets
+traction — roughly $0.02 per evaluation at current Flash pricing.
 
-**Watch the logs** in Railway for the first few real uses. The server logs every
-request with its origin, which is enough to see a CORS or routing problem
-immediately.
+**There is no per-user rate limiting in production.** `express-rate-limit` lives in
+`server.js`, which production no longer runs, and a serverless function has nowhere to
+keep a counter. The provider's own limit is the only backstop, so a determined abuser
+could burn the quota. If that happens, Netlify's rate limiting is a paid feature, and
+the cheaper fix is to put the evaluate button behind a lightweight bot check.
 
-**The key is server-side and must stay there.** It is only ever read from
-`process.env` in `server.js` and never sent to the browser. Do not put it in
-`index.html`.
+**Netlify free tier gives 125,000 function invocations a month**, which is far more
+headroom than the Gemini quota. The function is capped at a 26-second timeout; the
+code gives up at 25 and returns a readable message rather than being killed.
 
-**If you rotate the key**, change it in Railway Variables — the service restarts on
-its own. No redeploy needed.
+**Function logs** are under *Logs → Functions*. Every failure path logs a reason.
+
+**If you rotate the key**, update it in Environment variables and trigger a new
+deploy. The old value stays live until you do.
+
+---
+
+## Running it locally
+
+```bash
+npm install
+GEMINI_API_KEY=your-key npm start     # http://localhost:3000
+```
+
+That runs `server.js`, which serves the page and the API on one origin, mirroring
+production closely enough for development. To exercise the actual Netlify Functions
+locally instead, `npx netlify-cli dev`.
